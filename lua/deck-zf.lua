@@ -49,14 +49,19 @@ function matcher.match(query, text)
   return lib.deck_match(buf:ref(), #query, #text)
 end
 
-local highlights = ffi.new("deck_highlight_t[2048]")
+local highlight_buf = buffer.new()
+local highlight_ptr_t = ffi.typeof("deck_highlight_t *")
+local sizeof_highlight = assert(ffi.sizeof("deck_highlight_t"))
 
 ---@param query string
 ---@param text string
 ---@return { [1]: integer, [2]: integer }[]
 function matcher.decor(query, text)
+  local bytes, byte_capacity = highlight_buf:reserve(#query * sizeof_highlight)
+  local highlights = ffi.cast(highlight_ptr_t, bytes)
+  local highlight_capacity = math.floor(byte_capacity / sizeof_highlight)
   buf:reset():put(query, text)
-  local highlight_count = lib.deck_decor(buf:ref(), #query, #text, highlights, 2048) ---@type integer
+  local highlight_count = lib.deck_decor(buf:ref(), #query, #text, highlights, highlight_capacity) ---@type integer
   local ret = new_table(highlight_count, 0)
   for i = 0, highlight_count - 1 do
     ret[i + 1] = {
