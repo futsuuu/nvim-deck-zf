@@ -1,0 +1,18 @@
+.{
+    .name = .nvim_deck_zf,
+    .version = "0.0.1",
+    .fingerprint = 0xa36dfef6e2fa86ca,
+    .minimum_zig_version = "0.15.2",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+    .dependencies = .{
+        .zf = .{
+            .url = "git+https://github.com/natecraddock/zf.git#3c52637b7e937c5ae61fd679717da3e276765b23",
+            .hash = "zf-0.10.3-OIRy8RuJAACKA3Lohoumrt85nRbHwbpMcUaLES8vxDnh",
+            .lazy = true,
+        },
+    },
+}
