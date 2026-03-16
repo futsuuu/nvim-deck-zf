@@ -1,13 +1,16 @@
 # nvim-deck-zf
 
-[zf](https://github.com/natecraddock/zf) wrapper for [nvim-deck](https://github.com/hrsh7th/nvim-deck)
+[zf](https://github.com/natecraddock/zf) matcher for [nvim-deck](https://github.com/hrsh7th/nvim-deck)
 
 ## Installation
 
-Requirements:
+Build dependencies:
 
-- Neovim built with LuaJIT
-- Zig
+- Zig latest
+
+Runtime dependencies:
+
+- Neovim built with LuaJIT 2.1+
 
 Lazy.nvim example:
 
@@ -15,6 +18,7 @@ Lazy.nvim example:
 {
     "futsuuu/nvim-deck-zf",
     build = "zig build --release",
+    -- build = "mise x -- zig build --release",
 },
 ```
 
