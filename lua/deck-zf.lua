@@ -16,25 +16,42 @@ do
 end
 
 ffi.cdef([[
-double deck_match(
+typedef struct {
+  uint32_t col __attribute__((aligned(sizeof(uint64_t))));
+  uint32_t end_col;
+} deck_zf_highlight_t;
+
+double deck_zf_match(
   const uint8_t *buf,
   uint32_t query_len,
   uint32_t text_len
 );
 
-typedef struct {
-  uint32_t col __attribute__((aligned(sizeof(uint64_t))));
-  uint32_t end_col;
-} deck_highlight_t;
-
-uint32_t deck_decor(
+uint32_t deck_zf_decor(
   const uint8_t *buf,
   uint32_t query_len,
   uint32_t text_len,
-  deck_highlight_t *highlights,
+  deck_zf_highlight_t *highlights,
   uint32_t highlight_capacity
 );
 ]])
+
+---@class deck-zf*: ffi.namespace*
+---
+---@field deck_zf_match fun(
+---  buf: ffi.cdata*,
+---  query_len: integer,
+---  text_len: integer,
+---): rank: number
+---
+---@field deck_zf_decor fun(
+---  buf: ffi.cdata*,
+---  query_len: integer,
+---  text_len: integer,
+---  highlights: ffi.cdata*,
+---  highlight_capacity: integer,
+---): highlight_count: integer
+---
 local lib = ffi.load(lib_path)
 
 local matcher = {}
@@ -46,12 +63,12 @@ local buf = buffer.new()
 ---@return number
 function matcher.match(query, text)
   buf:reset():put(query, text)
-  return lib.deck_match(buf:ref(), #query, #text)
+  return lib.deck_zf_match(buf:ref(), #query, #text)
 end
 
 local highlight_buf = buffer.new()
-local highlight_ptr_t = ffi.typeof("deck_highlight_t *")
-local sizeof_highlight = assert(ffi.sizeof("deck_highlight_t"))
+local highlight_ptr_t = ffi.typeof("deck_zf_highlight_t *")
+local sizeof_highlight = assert(ffi.sizeof("deck_zf_highlight_t"))
 
 ---@param query string
 ---@param text string
@@ -61,7 +78,7 @@ function matcher.decor(query, text)
   local highlights = ffi.cast(highlight_ptr_t, bytes)
   local highlight_capacity = math.floor(byte_capacity / sizeof_highlight)
   buf:reset():put(query, text)
-  local highlight_count = lib.deck_decor(buf:ref(), #query, #text, highlights, highlight_capacity) ---@type integer
+  local highlight_count = lib.deck_zf_decor(buf:ref(), #query, #text, highlights, highlight_capacity)
   local ret = new_table(highlight_count, 0)
   for i = 0, highlight_count - 1 do
     ret[i + 1] = {

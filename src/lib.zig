@@ -1,7 +1,7 @@
 const std = @import("std");
 const zf = @import("zf");
 
-export fn deck_match(
+export fn deck_zf_match(
     buf: [*]const u8,
     query_len: u32,
     text_len: u32,
@@ -24,7 +24,7 @@ const Highlight = extern struct {
     end_col: u32,
 };
 
-export fn deck_decor(
+export fn deck_zf_decor(
     buf: [*]const u8,
     query_len: u32,
     text_len: u32,
