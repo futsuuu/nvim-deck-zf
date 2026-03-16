@@ -14,6 +14,7 @@ pub fn build(b: *std.Build) void {
     if (b.lazyDependency("zf", .{
         .target = target,
         .optimize = optimize,
+        .with_tui = false,
     })) |zf| {
         mod.addImport("zf", zf.module("zf"));
     }
