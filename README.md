@@ -27,7 +27,7 @@ Lazy.nvim example:
 ```lua
 require("deck").setup({
     default_start_config = {
-        matcher = require("deck-zf").matcher,
+        matcher = require("deck-zf").matcher(),
     }
 })
 ```

@@ -90,5 +90,7 @@ function matcher.decor(query, text)
 end
 
 return {
-  matcher = matcher,
+  matcher = function()
+    return matcher
+  end,
 }
