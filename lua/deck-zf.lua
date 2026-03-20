@@ -15,78 +15,115 @@ do
   end
 end
 
-ffi.cdef([[
-typedef struct {
-  uint32_t col __attribute__((aligned(sizeof(uint64_t))));
-  uint32_t end_col;
-} deck_zf_highlight_t;
-
-double deck_zf_match(
-  const uint8_t *buf,
-  uint32_t query_len,
-  uint32_t text_len
-);
-
-uint32_t deck_zf_decor(
-  const uint8_t *buf,
-  uint32_t query_len,
-  uint32_t text_len,
-  deck_zf_highlight_t *highlights,
-  uint32_t highlight_capacity
-);
-]])
-
----@class deck-zf*: ffi.namespace*
----
----@field deck_zf_match fun(
----  buf: ffi.cdata*,
----  query_len: integer,
----  text_len: integer,
----): rank: number
----
----@field deck_zf_decor fun(
----  buf: ffi.cdata*,
----  query_len: integer,
----  text_len: integer,
----  highlights: ffi.cdata*,
----  highlight_capacity: integer,
----): highlight_count: integer
----
 local lib = ffi.load(lib_path)
 
-local matcher = {}
+---@class deck-zf.Highlight*: ffi.cdata*
+---@field col integer
+---@field end_col integer
+local Highlight = {}
 
-local buf = buffer.new()
+Highlight.type = ffi.metatype([[struct {
+  uint32_t col __attribute__((aligned(sizeof(uint64_t))));
+  uint32_t end_col;
+}]], Highlight)
+Highlight.ptr_type = ffi.typeof("$ *", Highlight.type)
+Highlight.size = assert(ffi.sizeof(Highlight.type))
+
+---@class deck-zf.HighlightBuffer*: ffi.cdata*
+---@field ptr ffi.cdata*
+---@field capacity integer
+local HighlightBuffer = {}
+---@private
+HighlightBuffer.__index = HighlightBuffer
+
+HighlightBuffer.type = ffi.metatype(ffi.typeof([[struct {
+  $ ptr;
+  uint32_t capacity;
+}]], Highlight.ptr_type), HighlightBuffer)
+
+do
+  local buf = buffer.new()
+
+  ---@param min_capacity integer
+  ---@return self
+  function HighlightBuffer.new(min_capacity)
+    local byte_ptr, byte_capapcity = buf:reserve(min_capacity * Highlight.size)
+    return HighlightBuffer.type(
+      ffi.cast(Highlight.ptr_type, byte_ptr),
+      -- Usually `byte_capapcity` is a power of two, but even if it's not,
+      -- `number` can be automatically converted to `uint32_t`.
+      byte_capapcity / Highlight.size
+    )
+  end
+end
+
+---@param len integer
+---@return { [1]: integer, [2]: integer }[]
+function HighlightBuffer:to_deck_highlights(len)
+  local ret = new_table(len, 0)
+  for i = 0, len - 1 do
+    ret[i + 1] = { self.ptr[i].col, self.ptr[i].end_col }
+  end
+  return ret
+end
+
+---@class deck-zf.InputStrings*: ffi.cdata*
+---@field ptr ffi.cdata*
+---@field query_len integer
+---@field text_len integer
+local InputStrings = {}
+---@private
+InputStrings.__index = InputStrings
+
+InputStrings.type = ffi.metatype([[struct {
+  const uint8_t *ptr;
+  uint32_t query_len;
+  uint32_t text_len;
+}]], InputStrings)
+
+do
+  local buf = buffer.new()
+
+  ---@param query string
+  ---@param text string
+  ---@return self
+  function InputStrings.new(query, text)
+    return InputStrings.type(buf:reset():put(query, text):ref(), #query, #text)
+  end
+end
+
+-- NOTE: don't destructure ffi namespace!
+-- InputStrings.getRank = lib.deck_zf_InputStrings_getRank
+
+ffi.cdef("double deck_zf_InputStrings_getRank($ self);", InputStrings.type)
+---@return number rank
+function InputStrings:get_rank()
+  return lib.deck_zf_InputStrings_getRank(self)
+end
+
+ffi.cdef("uint32_t deck_zf_InputStrings_getHighlights($ self, $ buf);", InputStrings.type, HighlightBuffer.type)
+---@param buf deck-zf.HighlightBuffer*
+---@return integer highlight_count
+function InputStrings:get_highlights(buf)
+  return lib.deck_zf_InputStrings_getHighlights(self, buf)
+end
+
+local matcher = {}
 
 ---@param query string
 ---@param text string
 ---@return number
 function matcher.match(query, text)
-  buf:reset():put(query, text)
-  return lib.deck_zf_match(buf:ref(), #query, #text)
+  return InputStrings.new(query, text):get_rank()
 end
-
-local highlight_buf = buffer.new()
-local highlight_ptr_t = ffi.typeof("deck_zf_highlight_t *")
-local sizeof_highlight = assert(ffi.sizeof("deck_zf_highlight_t"))
 
 ---@param query string
 ---@param text string
 ---@return { [1]: integer, [2]: integer }[]
 function matcher.decor(query, text)
-  local bytes, byte_capacity = highlight_buf:reserve(#query * sizeof_highlight)
-  local highlights = ffi.cast(highlight_ptr_t, bytes)
-  local highlight_capacity = math.floor(byte_capacity / sizeof_highlight)
-  buf:reset():put(query, text)
-  local highlight_count = lib.deck_zf_decor(buf:ref(), #query, #text, highlights, highlight_capacity)
-  local ret = new_table(highlight_count, 0)
-  for i = 0, highlight_count - 1 do
-    ret[i + 1] = {
-      highlights[i].col,
-      highlights[i].end_col,
-    }
-  end
-  return ret
+  local buf = HighlightBuffer.new(#query)
+  local len = InputStrings.new(query, text):get_highlights(buf)
+  return buf:to_deck_highlights(len)
 end
 
 return {
