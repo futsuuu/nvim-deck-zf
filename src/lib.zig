@@ -11,13 +11,19 @@ pub const InputStrings = extern struct {
     ptr: [*]const u8,
     query_len: u32,
     text_len: u32,
+    text_to_lower: bool,
 
     /// Only used for testing.
-    fn new(comptime query: []const u8, comptime text: []const u8) InputStrings {
+    fn new(
+        comptime query: []const u8,
+        comptime text: []const u8,
+        opts: struct { text_to_lower: bool = false },
+    ) InputStrings {
         return .{
             .ptr = query ++ text,
             .query_len = query.len,
             .text_len = text.len,
+            .text_to_lower = opts.text_to_lower,
         };
     }
 
@@ -29,11 +35,16 @@ pub const InputStrings = extern struct {
         return self.ptr[self.query_len..][0..self.text_len];
     }
 
-    fn getRank(self: InputStrings) callconv(.c) f64 {
-        const opts: zf.RankTokenOptions = .{
+    fn getZfOptions(self: InputStrings) zf.RankTokenOptions {
+        return .{
+            .to_lower = self.text_to_lower,
             .filename = std.fs.path.basename(self.getText()),
+            .strict_path = std.mem.indexOfScalar(u8, self.getQuery(), std.fs.path.sep) != null,
         };
-        const rank = zf.rankToken(self.getText(), self.getQuery(), opts) orelse {
+    }
+
+    fn getRank(self: InputStrings) callconv(.c) f64 {
+        const rank = zf.rankToken(self.getText(), self.getQuery(), self.getZfOptions()) orelse {
             return 0;
         };
         if (rank < 0) {
@@ -46,18 +57,20 @@ pub const InputStrings = extern struct {
         const query = "foo";
         const text1 = "foo/bar.txt";
         const text2 = "bar/foo.txt";
-        try std.testing.expect(new(query, text1).getRank() < new(query, text2).getRank());
+        try std.testing.expect(new(query, text1, .{}).getRank() < new(query, text2, .{}).getRank());
+    }
+
+    test "getRank with text_to_lower" {
+        try std.testing.expectEqual(0, new("fo", "FOO", .{ .text_to_lower = false }).getRank());
+        try std.testing.expect(0 < new("fo", "FOO", .{ .text_to_lower = true }).getRank());
     }
 
     fn getHighlights(self: InputStrings, buf: HighlightBuffer) callconv(.c) u32 {
-        const opts: zf.RankTokenOptions = .{
-            .filename = std.fs.path.basename(self.getText()),
-        };
         const matched_indices = zf.highlightToken(
             self.getText(),
             self.getQuery(),
             buf.asMatchedIndexBuffer(),
-            opts,
+            self.getZfOptions(),
         );
         return buf.convertMatchedIndicesToHighlights(matched_indices);
     }
@@ -67,13 +80,25 @@ pub const InputStrings = extern struct {
         const text = "abcdefgh";
 
         var buf: [query.len]Highlight = undefined;
-        const count = new(query, text).getHighlights(.new(&buf));
+        const count = new(query, text, .{}).getHighlights(.new(&buf));
 
         try std.testing.expectEqualSlices(Highlight, &.{
             .{ .col = 0, .end_col = 2 },
             .{ .col = 3, .end_col = 5 },
             .{ .col = 6, .end_col = 8 },
         }, buf[0..count]);
+    }
+
+    test "getHighlights with text_to_lower" {
+        var buf: [2]Highlight = undefined;
+
+        const count_without = new("fo", "FOO", .{ .text_to_lower = false }).getHighlights(.new(&buf));
+        try std.testing.expectEqual(0, count_without);
+
+        const count_with = new("fo", "FOO", .{ .text_to_lower = true }).getHighlights(.new(&buf));
+        try std.testing.expectEqualSlices(Highlight, &.{
+            .{ .col = 0, .end_col = 2 },
+        }, buf[0..count_with]);
     }
 };
 

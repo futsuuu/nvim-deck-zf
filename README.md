@@ -24,9 +24,15 @@ Lazy.nvim example:
 ## Usage
 
 ```lua
+local zf_matcher = require("deck-zf").matcher({
+    --- the default is inferred from 'ignorecase' and 'smartcase' options
+    --- @type nil | true | "ignore" | "smart"
+    case = true,
+})
+
 require("deck").setup({
     default_start_config = {
-        matcher = require("deck-zf").matcher(),
+        matcher = zf_matcher,
     }
 })
 ```
