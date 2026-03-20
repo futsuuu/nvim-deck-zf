@@ -1,0 +1,82 @@
+*deck-zf.txt*  zf matcher for nvim-deck
+
+==============================================================================
+CONTENTS                                                    *deck-zf-contents*
+
+1. Introduction					|deck-zf|
+2. Requirements					|deck-zf-requirements|
+3. Installation					|deck-zf-installation|
+4. Usage					|deck-zf-usage|
+5. API						|deck-zf-api|
+
+==============================================================================
+1. Introduction                                                     *deck-zf*
+
+nvim-deck-zf provides a matcher for nvim-deck backed by zf.
+
+zf: https://github.com/natecraddock/zf
+
+nvim-deck: https://github.com/hrsh7th/nvim-deck (|deck.txt|)
+
+==============================================================================
+2. Requirements                                       *deck-zf-requirements*
+
+Build requirements:
+
+- Zig latest
+
+Runtime requirements:
+
+- Neovim built with LuaJIT 2.1+
+
+==============================================================================
+3. Installation                                       *deck-zf-installation*
+
+Build the native library after installing the plugin.
+
+Example for Lazy.nvim: >lua
+    {
+        "futsuuu/nvim-deck-zf",
+        build = "zig build --release",
+    },
+<
+
+This plugin loads the built shared library from the repository directory:
+
+- Windows:  `zig-out/bin/deck-zf.dll`
+- macOS:    `zig-out/lib/libdeck-zf.dylib`
+- Linux:    `zig-out/lib/libdeck-zf.so`
+
+==============================================================================
+4. Usage                                                     *deck-zf-usage*
+
+Create a matcher with |deck-zf.matcher()| and pass it to the `matcher` field
+in |deck.StartConfigSpecifier|:
+>lua
+    require("deck").setup({
+        default_start_config = {
+            matcher = require("deck-zf").matcher({ ... }),
+        },
+    })
+<
+
+==============================================================================
+5. API                                                           *deck-zf-api*
+
+deck-zf.matcher({opts})                                   *deck-zf.matcher()*
+    Create a matcher object for nvim-deck.
+
+    Parameters: ~
+      • {opts}	(`table`) Optional parameters.
+		• case: Controls case sensitivity. Currently takes the one of
+		  the following values:
+		  • `nil`: infers from |'smartcase'| and |'ignorecase'|.
+		  • `true`: respects the query as-is.
+		  • `"ignore"`: compares case-insensitively.
+		  • `"smart"`: compares case-insensitively unless the query
+		    contains an uppercase character.
+
+    Return: ~
+	(`deck.Matcher`) a matcher instance
+
+vim:tw=78:ts=8:noet:ft=help:norl:
