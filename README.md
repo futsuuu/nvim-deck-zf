@@ -18,7 +18,6 @@ Lazy.nvim example:
 {
     "futsuuu/nvim-deck-zf",
     build = "zig build --release",
-    -- build = "mise x -- zig build --release",
 },
 ```
 
