@@ -80,6 +80,13 @@ pub const InputStrings = extern struct {
 pub const Highlight = extern struct {
     col: u32 align(@sizeOf(u64)),
     end_col: u32,
+
+    fn fromIndex(col: usize) Highlight {
+        return .{
+            .col = @intCast(col),
+            .end_col = @intCast(col + 1),
+        };
+    }
 };
 
 pub const HighlightBuffer = extern struct {
@@ -94,22 +101,31 @@ pub const HighlightBuffer = extern struct {
         };
     }
 
+    comptime {
+        std.debug.assert(@bitSizeOf(Highlight) == 64);
+    }
+
     /// Returns the buffer of mached character index.
     inline fn asMatchedIndexBuffer(self: HighlightBuffer) []usize {
-        return @ptrCast(self.ptr[0..self.capacity]);
+        // To avoid overwriting the unread matched character indices by
+        // highlights in `convertMatchedIndicesToHighlights()`, reserve the
+        // front half of `self.ptr[0..self.capacity]` as unused on 32-bit
+        // environments.
+        return switch (@bitSizeOf(usize)) {
+            //    indices |   0   |   1   |   2   |   3   |   4   |
+            // highlights |  0,1  |  1,2  |  2,3  |  3,4  |  4,5  |
+            64 => @as([*]u64, @ptrCast(self.ptr))[0..self.capacity],
+            //    indices |   .   .   .   .   | 0 | 1 | 2 | 3 | 4 |
+            // highlights |  0,1  |  1,2  |  2,3  |  3,4  |  4,5  |
+            32 => @as([*]u32, @ptrCast(self.ptr))[self.capacity..][0..self.capacity],
+            else => unreachable,
+        };
     }
 
     test asMatchedIndexBuffer {
         var buf: [15]Highlight = undefined;
         const self: HighlightBuffer = .new(&buf);
-        try std.testing.expectEqual(
-            switch (@bitSizeOf(usize)) {
-                64 => 15,
-                32 => 30,
-                else => unreachable,
-            },
-            self.asMatchedIndexBuffer().len,
-        );
+        try std.testing.expectEqual(15, self.asMatchedIndexBuffer().len);
     }
 
     fn convertMatchedIndicesToHighlights(
@@ -125,61 +141,25 @@ pub const HighlightBuffer = extern struct {
         if (matched_indices.len == 0) {
             return 0;
         }
-        comptime std.debug.assert(@bitSizeOf(Highlight) == 64);
-        if (@bitSizeOf(usize) == 64) {
-            // When the size of `Highlight` matches `usize`, we can read the
-            // matched character indices (`[]usize`) from the front and write the
-            // highlight ranges (`[]Highlight`) from the front simultaneously.
-            var out_index: usize = 0;
-            var range_start: u32 = @intCast(matched_indices[0]);
-            var range_end: u32 = range_start + 1;
-            var i: usize = 1;
-            while (i < matched_indices.len) : (i += 1) {
-                const index: u32 = @intCast(matched_indices[i]);
-                if (index <= range_end) {
-                    const next_end = index + 1;
-                    if (next_end > range_end) {
-                        range_end = next_end;
-                    }
-                    continue;
+        var read_cursor: u32 = 0; // index of `matched_indices`
+        var write_cursor: u32 = 0; // index of `self.ptr`
+        var pending: Highlight = .fromIndex(matched_indices[read_cursor]);
+        read_cursor += 1;
+        while (read_cursor < matched_indices.len) : (read_cursor += 1) {
+            const matched_index: u32 = @intCast(matched_indices[read_cursor]);
+            if (matched_index <= pending.end_col) {
+                if (pending.end_col < matched_index + 1) {
+                    pending.end_col = matched_index + 1;
                 }
-                self.ptr[out_index] = .{ .col = range_start, .end_col = range_end };
-                out_index += 1;
-                range_start = index;
-                range_end = index + 1;
+                continue;
             }
-            self.ptr[out_index] = .{ .col = range_start, .end_col = range_end };
-            out_index += 1;
-            return @intCast(out_index);
-        } else if (@bitSizeOf(usize) == 32) {
-            // Otherwise, we write the highlight ranges from the back to avoid
-            // overwriting the matched character indices stored in `highlights`.
-            var out_index: usize = self.capacity;
-            var i: usize = matched_indices.len - 1;
-            var range_start: u32 = @intCast(matched_indices[i]);
-            var range_end: u32 = range_start + 1;
-            while (i > 0) {
-                i -= 1;
-                const index: u32 = @intCast(matched_indices[i]);
-                if (index + 1 >= range_start) {
-                    range_start = index;
-                    continue;
-                }
-                out_index -= 1;
-                self.ptr[out_index] = .{ .col = range_start, .end_col = range_end };
-                range_start = index;
-                range_end = index + 1;
-            }
-            out_index -= 1;
-            self.ptr[out_index] = .{ .col = range_start, .end_col = range_end };
-
-            const compact_len = self.capacity - out_index;
-            if (out_index != 0) {
-                @memcpy(self.ptr[0..compact_len], self.ptr[out_index..][0..compact_len]);
-            }
-            return @intCast(compact_len);
+            self.ptr[write_cursor] = pending;
+            write_cursor += 1;
+            pending = .fromIndex(matched_index);
         }
-        comptime unreachable;
+        self.ptr[write_cursor] = pending;
+        write_cursor += 1;
+        return write_cursor;
     }
 
     test convertMatchedIndicesToHighlights {
