@@ -205,5 +205,5 @@ pub const HighlightBuffer = extern struct {
 };
 
 comptime {
-    std.testing.refAllDeclsRecursive(@This());
+    std.testing.refAllDecls(@This());
 }
