@@ -35,16 +35,16 @@ pub const InputStrings = extern struct {
         return self.ptr[self.query_len..][0..self.text_len];
     }
 
-    fn getZfOptions(self: InputStrings) zf.RankTokenOptions {
+    fn getZfOptions(self: InputStrings) zf.RankNeedleOptions {
         return .{
-            .to_lower = self.text_to_lower,
+            .case_sensitive = !self.text_to_lower,
             .filename = std.fs.path.basename(self.getText()),
             .strict_path = std.mem.indexOfScalar(u8, self.getQuery(), std.fs.path.sep) != null,
         };
     }
 
     fn getRank(self: InputStrings) callconv(.c) f64 {
-        const rank = zf.rankToken(self.getText(), self.getQuery(), self.getZfOptions()) orelse {
+        const rank = zf.rankNeedle(self.getText(), self.getQuery(), self.getZfOptions()) orelse {
             return 0;
         };
         if (rank < 0) {
@@ -66,7 +66,7 @@ pub const InputStrings = extern struct {
     }
 
     fn getHighlights(self: InputStrings, buf: HighlightBuffer) callconv(.c) u32 {
-        const matched_indices = zf.highlightToken(
+        const matched_indices = zf.highlightNeedle(
             self.getText(),
             self.getQuery(),
             buf.asMatchedIndexBuffer(),
@@ -127,7 +127,7 @@ pub const HighlightBuffer = extern struct {
     }
 
     comptime {
-        std.debug.assert(@bitSizeOf(Highlight) == 64);
+        std.debug.assert(@sizeOf(Highlight) == 8);
     }
 
     /// Returns the buffer of mached character index.
@@ -158,7 +158,7 @@ pub const HighlightBuffer = extern struct {
         /// must be the prefix of the returned value of `asMatchedIndexBuffer()`
         matched_indices: []const usize,
     ) u32 {
-        if (builtin.mode == .Debug) {
+        if (builtin.mode == .debug) {
             const index_buf = self.asMatchedIndexBuffer();
             std.debug.assert(matched_indices.ptr == index_buf.ptr);
             std.debug.assert(matched_indices.len <= index_buf.len);

@@ -6,7 +6,7 @@
 
 Build dependencies:
 
-- Zig latest
+- Zig 0.17.1 or newer
 
 Runtime dependencies:
 

@@ -23,7 +23,7 @@ nvim-deck: https://github.com/hrsh7th/nvim-deck (|deck.txt|)
 
 Build requirements:
 
-- Zig latest
+- Zig 0.17.1 or newer
 
 Runtime requirements:
 
