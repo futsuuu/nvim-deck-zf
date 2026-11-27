@@ -30,6 +30,6 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v6
-      - uses: mlugg/setup-zig@v2
+      - uses: actions/checkout@v6.1.0
+      - uses: mlugg/setup-zig@v2.2.1
       - run: zig build test -Dtarget=${{ matrix.target }}
